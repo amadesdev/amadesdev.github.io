@@ -1,0 +1,280 @@
+<html lang="en"><head>
+<link rel="stylesheet" href="../css_styles/site_style2.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Malware analysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;900&amp;display=swap" rel="stylesheet">
+
+<link rel="icon" href="../visuals/amadesdev.png">
+<link rel="stylesheet" href="../scripts/hljs/styles/atom-one-light.css">
+<script src="../scripts/hljs/highlight.js"></script>
+
+<body>
+<main>
+<div id="nav">
+    <h2><a href="../amadesdev.html">Projects</a></h2>
+    <h2><a href="./about_me.html">About Me</a></h2>
+</div>
+
+<section>
+<p style="font-size: 80px; text-align: center;" class="body-text"><b>TUANDROMD</b></p>
+<p style="font-size: 16px" class="body-text"><i>Aleksander Majkowski</i></p>
+
+<p class="body-text"><a rel="noopener noreferrer" href="https://archive.ics.uci.edu/dataset/855/tuandromd+(tezpur+university+android+malware+dataset)" target="blank"><b>TUANDROMD</b></a> (Tezpur University Android Malware Dataset) contains 4464 (non-empty) instances and 241 attributes. The target attribute for classification is a category (malware vs goodware).
+<i>Variables: 1-214: Permission-based features, 215-241: API based features. </i>Each variable is encoded as 1 if the application requested permission or made an API call to specific function, or 0 otherwise.
+<br><br>
+Potential benefits of creating classification model that has high accuracy in malware detection would be increased performance for android based anti-virus software and possibly be of a great value for a company conducting business in this area, since customers
+while choosing software are primarily concerned with its effectivity.
+<br><br>
+Before we start analysis we would like to check a few things about this dataset.
+</p>
+
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Python code</b></p>
+<div class="code-container">
+<button class="toggle-code-button" align="center">Show code</button>
+
+<pre id="python-code-cont" class="python-code-cont"><code class="language-python">
+import pandas as pd
+
+# Import data
+df = pd.read_csv('TUANDROMD.csv')
+
+# Get basic information about the dataset
+print(df.info())
+print()
+
+# Function that checks if there are any empty instances in our data
+def find_empty_values(df):
+    
+    # Check for full empty rows
+    empty_rows = df[df.isnull().all(axis=1)].index
+    if not empty_rows.empty:
+    print("Empty rows:", empty_rows)
+
+    # Check for full empty columns
+    empty_cols = df.columns[df.isnull().all()]
+    if not empty_cols.empty:
+    print("Empty columns:", empty_cols)
+
+    # Check for partially empty rows and columns
+    for col in df.columns:
+    empty_indices = df[df[col].isnull()].index
+    if not empty_indices.empty and empty_indices.min() != empty_indices.max():
+    print(f"Values in rows {empty_indices.min()} to {empty_indices.max()} empty in column {col}")
+
+# Initialise function
+find_empty_values(df)
+</code></pre>
+<script>
+    hljs.highlightAll();
+</script>
+
+<button class="copy-button" type="button">
+<img class="copy-image" src="../visuals/button.jpg" alt="Copy Button" style="margin: 0 auto; width: 20px; height: 20px;">
+<span class="copy-message">Copied!</span>
+<div class="button-dim-overlay"></div></button>
+<script src="../scripts/copy.js"></script>
+</section>
+</div>
+<br><br>
+<p class="body-text"> The code provides us with basic information about dataset especially its dimension, size, in what dtype is the data stored and custom function that tells us whether the dataset contains any empty
+    sectors.
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Output</b></p>
+<div class="img"><img src="../visuals/tu_i.png"></div>
+<br><br>
+<p class="body-text">As we see, all numerical values are stored in float dtype. To ensure compatibility with our models we will have convert them to 'int' 
+type since neither of methods that we are going to use for 
+for classification of binary data can handle float values. 
+We also see that there is one empty row, possibly due to some database error. We need to delete this empty row before we can start analysis, 
+because most of the methods used to calculate
+best fit for a model use operation on matrices, especially invertion of a matrix. With empty row in our martix such operation mathematically would not be feasible. 
+We will also map the malware label to '1' and goodware label to '0' because as mentioned previously since our models use matrices - they would not handle operations on strings.
+Therefore we would need these additional commands:
+
+<pre>df = df.dropna()     <-drop empty row</pre>
+<pre>df = df.astype(int)  <-convert data to 'int' type</pre>
+<pre>df.iloc[:, 241] = df.iloc[:, 241].map({'malware': 1, 'goodware': 0}) <-mapping</pre>
+<p class="body-text">For our classification task we will use two models: Random Forest and Logistic Regression. At the end we will evaluate which of them performed better.
+    Both of these models are well suited for binary classification tasks. We will split the data into 80% train and 20% test data, map independent variables and dependant variables to different matrices
+    and employ the models. Then we will check which model performed better in terms of precision recall, f1 score, support and AUC-ROC.</p>
+<br><br>
+
+<section><p style="font-size: 20px; text-align: center;" class="body-text"><b>Python code: TUANDROMD.py</b></p>
+<div class="code-container2">
+<button class="toggle-code-button2" align="center">Show code</button>
+<pre id="python-code-cont2" class="python-code-cont2"><code class="language-python">
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report
+from sklearn.metrics import roc_auc_score
+
+# Load data
+df = pd.read_csv('TUANDROMD.csv')
+
+# Transcribe pandas 'object' data type in "Label" category variables (goodware and malware) to binary outcome (0 and 1 respectivly)
+df.iloc[:, 241] = df.iloc[:, 241].map({'malware': 1, 'goodware': 0})
+
+# Drop empty rows or columns, in our example as checked before we have only have row number 2533 empty
+df = df.dropna()
+# Convert all binary data values from float type to int type for compatibility with model library (sk-learn)
+df = df.astype(int)
+
+# Splitting data into independent (explanatory) variables and dependend (explained) variables
+X = df.drop(columns=df.columns[241])
+y = df.iloc[:, 241]
+
+# Split the data into training and testing sets (80% train, 20% test)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+print(f"Training instances: {len(X_train)}, Testing instances: {len(X_test)}")
+
+# Random forest model
+rf = RandomForestClassifier(random_state=42)
+rf.fit(X_train, y_train)
+y_pred_rf = rf.predict(X_test)
+print("Random Forest Performance:\n", classification_report(y_test, y_pred_rf))
+
+# Logistic Regression model
+lr = LogisticRegression(random_state=42, max_iter=1000)
+lr.fit(X_train, y_train)
+y_pred_lr = lr.predict(X_test)
+print("Logistic Regression Performance:\n", classification_report(y_test, y_pred_lr))
+
+# Evaluate Random Forest in terms of AUC-ROC
+roc_rf = roc_auc_score(y_test, y_pred_rf)
+print("Random Forest AUC-ROC:", roc_rf)
+
+# Evaluate Logistic Regression in terms of AUC-ROC
+roc_lr = roc_auc_score(y_test, y_pred_lr)
+print("Logistic Regression AUC-ROC:", roc_lr)
+</code></pre>
+<script>
+    hljs.highlightAll();
+</script>
+<button class="copy-button2" type="button">
+<img src="../visuals/button.jpg" alt="Copy Button" style="margin: 0 auto; width: 20px; height: 20px;">
+<span class="copy-message2">Copied!</span>
+<div class="button-dim-overlay2"></div>
+</button>
+<script src="../scripts/copy2.js"></script>
+</section></div>
+
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Output</b></p>
+<div class="img"><img src="../visuals/tu_r.png"></div>
+<br><br>
+<p class="body-text">
+In our example the Random Forest model performed a bit better than Logistic Regression.
+As we see both our models scored high in terms of precision, recall, f1 score and accuracy, but Random Forest scored better especially in precision metric (for class 0 - goodware) which is Total Positives / (Total Positives + False Positives)
+and that means it has lower probability of labeling malware as benign. 
+<br><br>
+Both of our models have a high accuracy which is (Total Positives + 
+Total Negatives) / (Total Positives + Total Negatives + False positives + False negatives).
+<br><br>
+Both models have high recall (for class 0 - goodware) which means they have low ratio of misidentifying goodware as something malicious.
+<br><br>
+Both have high AUC-ROC meaning that they perform well not only on training data but also on the test data.
+AUC-ROC is the area under the ROC curve that shows relationship between True Positive 
+and False positive rate for our model. AUC = 1  means perfect classifier and AUC = 0.5 means random calssifier.
+<br><br>
+For further improvements we could experiment with number of parameters in random forest function to check if there are improvements. The code belows tries to find automatically the best
+combination of depth, leaves and layers, but is significantly more computationally intensive, at least for home PC :)
+<br><br>
+<section><p style="font-size: 20px; text-align: center;" class="body-text"><b>Python code: TUANDROMD.py (improved)</b></p>
+<div class="code-container3">
+<button class="toggle-code-button3" align="center">Show code</button>
+<pre id="python-code-cont3" class="python-code-cont3"><code class="language-python">
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report
+from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import precision_score, roc_auc_score
+from sklearn.metrics import make_scorer
+from sklearn.metrics import roc_auc_score
+
+# Load data
+df = pd.read_csv('TUANDROMD.csv')
+
+# Transcribe pandas 'object' data type in "Label" category variables (goodware and malware) to binary outcome (0 and 1 respectivly)
+df.iloc[:, 241] = df.iloc[:, 241].map({'malware': 1, 'goodware': 0})
+
+# Drop empty rows or columns, in our example as checked before we have only have row number 2533 empty
+df = df.dropna()
+# Convert all binary data values from float type to int type for compatibility with model library (sk-learn)
+df = df.astype(int)
+
+# Splitting data into independent (explanatory) variables and dependend (explained) variables
+X = df.drop(columns=df.columns[241])
+y = df.iloc[:, 241]
+
+# Split the data into training and testing sets (80% train, 20% test)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+print(f"Training instances: {len(X_train)}, Testing instances: {len(X_test)}")
+
+# Random forest model
+rf = RandomForestClassifier(random_state=42)
+
+# Searching for best Random Forest looking at weighted sum of precision and AUC-ROC
+def combined_score(y_true, y_pred):
+    precision = precision_score(y_true, y_pred)
+    auc_roc = roc_auc_score(y_true, y_pred)
+    return 0.7*precision + 0.3*auc_roc
+
+combined_scorer = make_scorer(combined_score)
+
+# Perform GridSearchCV to find best parameters
+param_grid_rf = {
+    'n_estimators': range(100,140),
+    'max_depth': range(12,14),
+    'min_samples_split': range(2, 3),
+    'min_samples_leaf': range(1, 2)
+}
+
+grid_search = GridSearchCV(rf, param_grid_rf, cv=5, scoring=combined_scorer)
+grid_search.fit(X_train, y_train)
+
+best_rf = RandomForestClassifier(**grid_search.best_params_)
+best_rf.fit(X_train, y_train)
+
+# Evaluate the updated Random Forest model
+y_pred_best_rf = best_rf.predict(X_test)
+print("Random Forest (with better params) Performance:\n", classification_report(y_test, y_pred_best_rf))
+
+# Evaluate Random Forest in terms of AUC-ROC
+roc_rf2 = roc_auc_score(y_test, y_pred_best_rf)
+print("Random Forest AUC-ROC:", roc_rf2)
+
+print()
+print("RF_par:", grid_search.best_params_)
+</code></pre>
+<script>
+    hljs.highlightAll();
+</script>
+<button class="copy-button3" type="button">
+<img src="../visuals/button.jpg" alt="Copy Button" style="margin: 0 auto; width: 20px; height: 20px;">
+<span class="copy-message3">Copied!</span>
+<div class="button-dim-overlay3"></div>
+</button>
+<script src="../scripts/copy3.js"></script>
+</section></div>
+<br><br>
+<p class="body-text">
+By enabling search for best parametrs and waiting some time we have found even better hyperparemetrs than default random forest model!
+The results are as follows:</p>
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Output</b></p>
+<div class="img"><img src="../visuals/tu_r2.png"></div>
+<br><br>
+<p class="body-text">
+The best combination of parameters is printed at the bottom of the output. This Random Forest has higher AUC-ROC, but lower recall for class 1 (malware). In our case it is undesirable feature as lower recall for class 1 means that not all malware instances
+were classified as malware by our model. Also it has lower precision for class 0 which further reflects previous sentiment. In case of anti-malware software we would not want such "improvement".
+<br><br>
+That is why it is important to evaluate each model in terms of most desired outcome and not only solely on basis of arbitrarily chosen metrics.</p>
+<br><br>
+<br><br>
+</div></section></body></html>

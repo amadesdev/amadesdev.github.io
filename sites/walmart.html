@@ -1,0 +1,286 @@
+<html lang="en"><head>
+<link rel="stylesheet" href="../css_styles/site_style2.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Walmart sales forecasting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;900&amp;display=swap" rel="stylesheet">
+
+<link rel="icon" href="../visuals/amadesdev.png">
+<link rel="stylesheet" href="../scripts/hljs/styles/atom-one-light.css">
+<script src="../scripts/hljs/highlight.js"></script>
+
+<body>
+<main>
+<div id="nav">
+    <h2><a href="../amadesdev.html">Projects</a></h2>
+    <h2><a href="./about_me.html">About Me</a></h2>
+</div>
+
+<section>
+<p style="font-size:74px; text-align: center;" class="body-text"><b>Sales forecasting</b></p>
+<p style="font-size: 16px" class="body-text"><i>Aleksander Majkowski</i></p>
+
+<p class="body-text">
+    Time series prediction of sales is important measure for a big shop chain like Walmart. 
+    These forecasts are essential for Walmart's overall budgeting, resource allocation, and strategic decision-making. 
+    They are also crucial for long-term planning, staff managment, store expansion or closure, and for informing regional marketing campaigns and supply chain operatives. 
+<br><br>
+For this task we will be using this <a rel="noopener noreferrer" href="https://www.kaggle.com/datasets/yasserh/walmart-dataset" target="blank"><b>dataset</b></a>.
+It covers sales from 2010-02-05 to 2012-11-01 (yyyy-mm-dd). There are some variables concerning: 'Store' (integer from 1 to 45), 'Date' (weekly granularity), 'Weekly_Sales' - sales during this one week period, 
+'Holiday_Flag' - binary variable if the week is a special holiday week, 'Temperature', 'Fuel_Price', 'CPI' (Consumer Price Index) and 'Unemployment'.
+<br><br>
+For our prediction we will use 4 models, two of them will be machine learning models. The models will be: Linear Regression, Ridge Regression, MLPRegressor and DNN Regressor. 
+We will evaluate models using R<sup>2</sup>, RMSE and MAPE.
+<br><br>
+In the code we will preprocess date so that year, month and day are in seperate columns. Since data is weekly it makes sense for us to add week of the year variable.
+    We will also OneHotEncode variable 'Store' since every store might have different affinity for certain variables from our dataset. We will the split data set 80% train and 20% test data. 
+    Then we will scale numerical feautres using StandardScaler. Then we will train and evaluate models.
+</p>
+
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Python code: Walmart.py</b></p>
+<div class="code-container">
+<button class="toggle-code-button" align="center">Show code</button>
+
+<pre id="python-code-cont" class="python-code-cont"><code class="language-python">
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.metrics import r2_score, mean_absolute_percentage_error, root_mean_squared_error
+from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.neural_network import MLPRegressor
+from tensorflow import keras
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras import Sequential, Input
+
+# Load the data
+df = pd.read_csv('Walmart.csv')
+
+# Data Preprocessing
+df['Date'] = pd.to_datetime(df['Date'], format=f'%d-%m-%Y')
+df['Year'] = df['Date'].dt.year
+df['Month'] = df['Date'].dt.month
+df['Day'] = df['Date'].dt.day
+df['WeekOfYear'] = df['Date'].dt.isocalendar().week
+df = df.drop(columns=['Date'])
+
+# One-Hot encode 'Store' variable
+ohe = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
+store_encoded = ohe.fit_transform(df[['Store']])
+store_encoded_df = pd.DataFrame(store_encoded, columns=ohe.get_feature_names_out(['Store']))
+df = df.drop(columns=['Store'])
+df = pd.concat([df, store_encoded_df], axis=1)
+
+# Define features (X) and target (y)
+X = df.drop(columns=['Weekly_Sales'])
+y = df['Weekly_Sales']
+
+# Split data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Scale numerical features
+numerical_features = ['Temperature', 'Fuel_Price', 'CPI', 'Unemployment', 'Year', 'Month', 'Day', 'WeekOfYear']
+scaler = StandardScaler()
+X_train[numerical_features] = scaler.fit_transform(X_train[numerical_features])
+
+X_test[numerical_features] = scaler.transform(X_test[numerical_features])
+
+# Scale the target variable
+y_scaler = StandardScaler()
+y_train_scaled = y_scaler.fit_transform(y_train.values.reshape(-1, 1)).ravel()
+y_test_scaled = y_scaler.transform(y_test.values.reshape(-1, 1)).ravel()
+
+
+# Define Models
+models = {
+    "Linear Regression": LinearRegression(),
+    "Ridge Regression": Ridge(alpha=5.0),
+    "MLPRegressor": MLPRegressor(hidden_layer_sizes=(64, 32), max_iter=500, alpha=0.01, solver='adam', tol=1e-5, random_state=42),
+    "DNN Regressor": Sequential([
+    Input(shape=(X_train.shape[1],)),
+    Dense(32, activation='relu'),
+    Dropout(0.5),
+
+    Dense(16, activation='relu'),
+    Dropout(0.5),
+
+    Dense(1)])
+}
+
+# Compile the Keras model
+models["DNN Regressor"].compile(loss='mse', optimizer='adam')
+
+
+# Train and Evaluate Models (using scaled y for DNN)
+results = {}
+for name, model in models.items():
+    print(f"Training {name}...")
+    if name == "DNN Regressor":
+        early_stopping = keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+        model.fit(X_train, y_train_scaled, epochs=100, validation_split=0.2, callbacks=[early_stopping], verbose=0)
+        y_pred_scaled = model.predict(X_test)
+        y_pred = y_scaler.inverse_transform(y_pred_scaled).flatten()  # Inverse transform
+    else:
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+
+    r2 = r2_score(y_test, y_pred)
+    rmse = root_mean_squared_error(y_test, y_pred)
+    mape = mean_absolute_percentage_error(y_test, y_pred)
+    results[name] = {"R-squared": r2, "RMSE": rmse, "MAPE": mape}
+
+# Print Results
+for name, metrics in results.items():
+    print(f"\n{name}:")
+    for metric, value in metrics.items():
+        print(f"  {metric}: {value}")
+</code></pre>
+<script>
+    hljs.highlightAll();
+</script>
+
+<button class="copy-button" type="button">
+<img class="copy-image" src="../visuals/button.jpg" alt="Copy Button" style="margin: 0 auto; width: 20px; height: 20px;">
+<span class="copy-message">Copied!</span>
+<div class="button-dim-overlay"></div></button>
+<script src="../scripts/copy.js"></script>
+</section>
+</div>
+
+<br><br>
+<p class="body-text"> 
+As we can see this code does all of the afromentioned tasks. After a bit of waiting we get our output.
+</p>
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Output</b></p>
+<img src="../visuals/w1.png">
+<br><br>
+<br><br>
+<p class="body-text">
+As we see this time traditional data science models perfomed better both in terms of R<sup>2</sup> and MAPE. Overall the results are not bad but as always we should seek improvement.
+ For further improvements we could tune neural network parameters to see how they respond to that.
+    </p>
+<br><br>
+
+<section><p style="font-size: 20px; text-align: center;" class="body-text"><b>Python code: Walmart.py (improved ML params)</b></p>
+<div class="code-container2">
+<button class="toggle-code-button2" align="center">Show code</button>
+<pre id="python-code-cont2" class="python-code-cont2"><code class="language-python">
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.metrics import r2_score, mean_absolute_percentage_error, root_mean_squared_error
+from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.neural_network import MLPRegressor
+from tensorflow import keras
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras import Sequential, Input
+
+# Load the data
+df = pd.read_csv('Walmart.csv')
+
+# Data Preprocessing
+df['Date'] = pd.to_datetime(df['Date'], format=f'%d-%m-%Y')
+df['Year'] = df['Date'].dt.year
+df['Month'] = df['Date'].dt.month
+df['Day'] = df['Date'].dt.day
+df['WeekOfYear'] = df['Date'].dt.isocalendar().week
+df = df.drop(columns=['Date'])
+
+# One-Hot encode 'Store' variable
+ohe = OneHotEncoder(handle_unknown='ignore', sparse_output=False)  # sparse=False for compatibility
+store_encoded = ohe.fit_transform(df[['Store']])
+store_encoded_df = pd.DataFrame(store_encoded, columns=ohe.get_feature_names_out(['Store']))
+df = df.drop(columns=['Store'])
+df = pd.concat([df, store_encoded_df], axis=1)
+
+# Define features (X) and target (y)
+X = df.drop(columns=['Weekly_Sales'])
+y = df['Weekly_Sales']
+
+# Split data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Scale numerical features
+numerical_features = ['Temperature', 'Fuel_Price', 'CPI', 'Unemployment', 'Year', 'Month', 'Day', 'WeekOfYear']
+scaler = StandardScaler()
+X_train[numerical_features] = scaler.fit_transform(X_train[numerical_features])
+
+X_test[numerical_features] = scaler.transform(X_test[numerical_features])
+
+# Scale the target variable
+y_scaler = StandardScaler()
+y_train_scaled = y_scaler.fit_transform(y_train.values.reshape(-1, 1)).ravel()
+y_test_scaled = y_scaler.transform(y_test.values.reshape(-1, 1)).ravel()
+
+
+# Define Models
+models = {
+    "Linear Regression": LinearRegression(),
+    "Ridge Regression": Ridge(alpha=0.2),
+    "MLPRegressor": MLPRegressor(hidden_layer_sizes=(128, 64), max_iter=1000, alpha=0.001, solver='adam', tol=1e-5, random_state=42),
+    "DNN Regressor": Sequential([
+        Input(shape=(X_train.shape[1],)),
+        Dense(256, activation='relu'),
+        Dropout(0.2),
+        Dense(128, activation='relu'),
+        Dropout(0.2),
+        Dense(1)
+    ])
+}
+
+# Compile the Keras model
+models["DNN Regressor"].compile(loss='mse', optimizer='adam')
+
+
+# Train and Evaluate Models (using scaled y for DNN)
+results = {}
+for name, model in models.items():
+    print(f"Training {name}...")
+    if name == "DNN Regressor":
+        early_stopping = keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+        model.fit(X_train, y_train_scaled, epochs=100, validation_split=0.2, callbacks=[early_stopping], verbose=0)
+        y_pred_scaled = model.predict(X_test)
+        y_pred = y_scaler.inverse_transform(y_pred_scaled).flatten()  # Inverse transform
+    else:
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+
+    r2 = r2_score(y_test, y_pred)
+    rmse = root_mean_squared_error(y_test, y_pred)
+    mape = mean_absolute_percentage_error(y_test, y_pred)
+    results[name] = {"R-squared": r2, "RMSE": rmse, "MAPE": mape}
+
+# Print Results
+for name, metrics in results.items():
+    print(f"\n{name}:")
+    for metric, value in metrics.items():
+        print(f"  {metric}: {value}")
+</code></pre>
+<script>
+    hljs.highlightAll();
+</script>
+<button class="copy-button2" type="button">
+<img src="../visuals/button.jpg" alt="Copy Button" style="margin: 0 auto; width: 20px; height: 20px;">
+<span class="copy-message2">Copied!</span>
+<div class="button-dim-overlay2"></div>
+</button>
+<script src="../scripts/copy2.js"></script>
+</section></div>
+
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Output</b></p>
+
+<img src="../visuals/w2.png">
+<br><br>
+<p class="body-text">
+We can clearly see that now ML models outperformed classical ones in both R<sup>2</sup> and MAPE evaluation metrics. 
+In case of the DNN Regressor we saw remarkable improvement, almost 60% of reduction of MAPE which stands now at around 5.8%.
+<br><br> 
+For further refinement of models we could create some parameter and hyperparameter space to find the best parametrs and perform cross validation in order to even better assess models performance. 
+We could also add lagged variables to see if there are lagged dependencies between dependent variable and independent variables, we could use Bayesian optimisation to further tune hyperparemets,
+we could also create Genetic Machine Learning models and see which ones perform better or we could employ different
+model like LightGBM or CatBoost and finally we could create ensemble models.
+
+</p><br><br><br><br></div></section></body></html>

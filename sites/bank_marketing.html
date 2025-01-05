@@ -1,0 +1,446 @@
+<html lang="en"><head>
+<link rel="stylesheet" href="../css_styles/site_style2.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bank marketing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;900&amp;display=swap" rel="stylesheet">
+
+<link rel="icon" href="../visuals/amadesdev.png">
+<link rel="stylesheet" href="../scripts/hljs/styles/atom-one-light.css">
+<script src="../scripts/hljs/highlight.js"></script>
+
+<body>
+<main>
+<div id="nav">
+    <h2><a href="../amadesdev.html">Projects</a></h2>
+    <h2><a href="./about_me.html">About Me</a></h2>
+</div>
+
+<section>
+<p style="font-size: 79px; text-align: center;" class="body-text"><b>Bank marketing</b></p>
+<p style="font-size: 16px" class="body-text"><i>Aleksander Majkowski</i></p>
+
+<p class="body-text">
+    In the <a rel="noopener noreferrer" href="https://archive.ics.uci.edu/dataset/222/bank+marketing" target="blank"><b>dataset</b></a> 
+    there are: <b>demographics information such as:</b> <i>age, job, marital, education;</i>
+     <b>information about client financial status:</b><i> default (has person defaulted: yes, no), balance, housing, loan;</i>
+     <b>and information about previous contacts:</b><i> contact, day, month, duration, campaign, pdays, previous, poutcome.</i>
+     The dependant variable describes whether client has subscribed to term deposit.
+<br><br>
+    Of course we could perform classification model employing Random Forest, XGBoost, Logistic Regression or any other suitable model.
+    <br><br>
+    But there are indications that a more suitable business application of data science would be in this case clustering task. Classification algorithm would of course be useful 
+    to improve efficiency and contact those clients that are the most willing to pursue an offer.
+    <br><br>
+    It would be very useful in the case where we want not only to minimize costs, but also to expand as a business, so we might receive the decision perform analysis for marketing team which 
+    might tell us what are we missing, if there are any groups of clients that have significant lower conversion rate and if they possess distinct characteristics, or maybe some groups of clients
+    reponds incredibly well and we might want to know what else can we offer them.
+<br><br>
+ The datebase has been checked before the analysis and there were no issues with column names nor with missing or significantly unexpected values. Below is the code for clustering and corresponding output.
+<br><br>
+</p>
+
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Python code: bank_marketing.py</b></p>
+<div class="code-container">
+<button class="toggle-code-button" align="center">Show code</button>
+
+<pre id="python-code-cont" class="python-code-cont"><code class="language-python">
+import pandas as pd
+import numpy as np
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+
+# Load data
+df = pd.read_csv("bank-full.csv", sep=';')
+
+# Feature Engineering
+df['was_contacted'] = (df['pdays'] != -1).astype(int)
+max_pdays = df['pdays'].max()
+df['pdays_transformed'] = np.where(df['pdays'] == -1, 0, df['pdays'])
+df['pdays_transformed'] = np.log1p(df['pdays_transformed'])
+
+
+# Preprocessing
+categorical_features = ['job', 'marital', 'education', 'default', 'housing', 'loan', 'contact', 'month', 'poutcome']
+numerical_features = ['age', 'balance', 'duration', 'campaign', 'previous', 'pdays_transformed']
+
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', StandardScaler(), numerical_features),
+        ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_features)
+    ])
+
+
+# Clustering (KMeans)
+k = 8 
+kmeans = KMeans(n_clusters=k, random_state=42, n_init=10) 
+df['cluster'] = kmeans.fit_predict(preprocessor.fit_transform(df))
+
+
+# Analysis of clusters
+for i in range(k):
+    cluster_data = df[df['cluster'] == i]
+    print(f"Cluster {i+1} Statistics:")
+    print(cluster_data[numerical_features + categorical_features + ['y']].describe())
+
+# Analyze subscription rates across clusters
+subscription_rates = df.groupby('cluster')['y'].value_counts(normalize=True).unstack().rename(lambda x: x + 1, axis='index')
+print("\nSubscription Rates by Cluster:")
+print(subscription_rates)
+</code></pre>
+<script>
+    hljs.highlightAll();
+</script>
+
+<button class="copy-button" type="button">
+<img class="copy-image" src="../visuals/button.jpg" alt="Copy Button" style="margin: 0 auto; width: 20px; height: 20px;">
+<span class="copy-message">Copied!</span>
+<div class="button-dim-overlay"></div></button>
+<script src="../scripts/copy.js"></script>
+</section>
+</div>
+
+<br><br>
+<p class="body-text">The amount of clusters have been chosen by experimenting with different amounts to visualise different groups in best way possible for our
+    marketing department and turned out to be 8 clusters. We performed feature engineering, since there are lots of customers who have not been contacted (pdays = -1) and some customers who have
+    been contacted long ago. Therefore we will change values for those not contacted from -1 to 0 and apply logarithm transoform -> log1p (log 1 + x) to better capture underlying information.
+    We also scaled continous features and encoded categorical features. The variable pdays_transf is the variable pdays_transformed.
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Output</b></p>
+<br><br>
+<div class=float2><pre>
+	Cluster 1 Statistics:
+                  age           balance        duration        campaign        previous    pdays_transf
+count    10045.000000      10045.000000    10045.000000    10045.000000    10045.000000    10045.000000
+mean        37.788352        809.418815      207.689298        2.277352        0.000100        0.000069
+std          7.344756       1414.862065      139.346931        1.622021        0.009978        0.006916
+min         20.000000      -3372.000000        0.000000        1.000000        0.000000        0.000000
+25%         32.000000         33.000000      105.000000        1.000000        0.000000        0.000000
+50%         37.000000        329.000000      176.000000        2.000000        0.000000        0.000000
+75%         43.000000       1004.000000      281.000000        3.000000        0.000000        0.000000
+max         59.000000      10045.000000      709.000000       10.000000        1.000000        0.693147
+
+	Cluster 2 Statistics:
+                  age           balance        duration        campaign        previous    pdays_transf
+count      849.000000        849.000000      849.000000      849.000000      849.000000      849.000000
+mean        43.952886      16896.693757      243.164900        2.513545        0.407538        0.804356
+std         11.228024      10032.941050      221.810079        2.401870        1.159961        1.867983
+min         22.000000       8899.000000        1.000000        1.000000        0.000000        0.000000
+25%         34.000000      11265.000000      100.000000        1.000000        0.000000        0.000000
+50%         43.000000      13546.000000      174.000000        2.000000        0.000000        0.000000
+75%         53.000000      19102.000000      308.000000        3.000000        0.000000        0.000000
+max         85.000000     102127.000000     1623.000000       31.000000        9.000000        6.380123
+
+	Cluster 3 Statistics:
+                  age           balance        duration        campaign        previous    pdays_transf
+count     7219.000000       7219.000000     7219.000000     7219.000000     7219.000000     7219.000000
+mean        40.442998       1275.301288      239.071478        1.988918        2.445075        5.299982
+std         10.752933       1826.647881      180.988826        1.473377        1.581050        0.589033
+min         18.000000      -1884.000000        1.000000        1.000000        1.000000        1.098612
+25%         32.000000        158.000000      111.000000        1.000000        1.000000        4.990433
+50%         38.000000        574.000000      190.000000        1.000000        2.000000        5.293305
+75%         47.000000       1616.000000      313.000000        2.000000        3.000000        5.808142
+max         93.000000      11222.000000     1126.000000       12.000000        7.000000        6.770789
+
+	Cluster 4 Statistics:
+                  age           balance        duration        campaign        previous    pdays_transf
+count     2846.000000       2846.000000     2846.000000     2846.000000     2846.000000     2846.000000
+mean        40.411455       1257.333450      982.017217        2.486297        0.133872        0.288735
+std          9.895290       1903.597756      376.143001        1.877905        0.667602        1.193005
+min         21.000000      -3058.000000      547.000000        1.000000        0.000000        0.000000
+25%         33.000000        104.000000      728.250000        1.000000        0.000000        0.000000
+50%         39.000000        540.000000      876.000000        2.000000        0.000000        0.000000
+75%         47.000000       1590.750000     1123.750000        3.000000        0.000000        0.000000
+max         89.000000      13711.000000     4918.000000       17.000000        8.000000        6.135565
+
+	Cluster 5 Statistics:
+                  age           balance        duration       campaign        previous     pdays_transf
+count    12239.000000      12239.000000    12239.000000   12239.000000    12239.000000     12239.000000
+mean        33.661574        926.194215      206.475856       2.381812        0.006210         0.004541
+std          5.252788       1512.503442      139.465148       1.695885        0.131471         0.086179
+min         18.000000      -8019.000000        0.000000       1.000000        0.000000         0.000000
+25%         30.000000         47.000000      100.000000       1.000000        0.000000         0.000000
+50%         33.000000        358.000000      169.000000       2.000000        0.000000         0.000000
+75%         37.000000       1119.000000      283.000000       3.000000        0.000000         0.000000
+max         49.000000       9883.000000      690.000000       9.000000        6.000000         2.302585
+
+	Cluster 6 Statistics:
+                  age           balance        duration       campaign        previous     pdays_transf
+count    10046.000000      10046.000000    10046.000000   10046.000000    10046.000000     10046.000000
+mean        53.286880       1277.945849      198.443858       2.571670        0.023293         0.041439
+std          7.166186       1826.906888      142.345233       1.831800        0.258754         0.418830
+min         38.000000      -6847.000000        2.000000       1.000000        0.000000         0.000000
+25%         48.000000         82.000000       94.000000       1.000000        0.000000         0.000000
+50%         53.000000        541.000000      157.000000       2.000000        0.000000         0.000000
+75%         57.000000       1741.000000      266.000000       3.000000        0.000000         0.000000
+max         95.000000      10394.000000      912.000000      12.000000        8.000000         5.918894
+
+	Cluster 7 Statistics:
+                  age           balance        duration       campaign        previous     pdays_transf
+count     1390.000000       1390.000000     1390.000000    1390.000000     1390.000000      1390.000000
+mean        40.252518        947.408633      140.888489      15.746763        0.007194         0.011737
+std          9.048241       1756.535262      178.145316       6.674736        0.156289         0.228861
+min         19.000000      -1613.000000        0.000000       9.000000        0.000000         0.000000
+25%         33.000000         12.000000       24.000000      11.000000        0.000000         0.000000
+50%         39.000000        281.000000       79.000000      14.000000        0.000000         0.000000
+75%         47.000000       1102.000000      178.750000      18.000000        0.000000         0.000000
+max         95.000000      14058.000000     1484.000000      63.000000        5.000000         5.549076
+
+	Cluster 8 Statistics:
+                 age            balance        duration       campaign        previous     pdays_transf
+count     577.000000         577.000000      577.000000     577.000000      577.000000       577.000000
+mean       40.975737        1452.639515      246.077990       2.838821       13.064125         5.209259
+std        11.645044        2196.165850      226.874795       2.153006       12.631161         0.665681
+min        20.000000       -1212.000000        5.000000       1.000000        8.000000         1.098612
+25%        33.000000         163.000000       99.000000       1.000000        9.000000         4.770685
+50%        38.000000         680.000000      187.000000       2.000000       11.000000         5.247024
+75%        47.000000        1840.000000      321.000000       4.000000       14.000000         5.739793
+max        93.000000       18931.000000     1916.000000      16.000000      275.000000         6.695799
+</pre></div>
+<pre style="margin-left: 180px;"">
+
+
+Subscription Rates by Cluster
+y                no       yes
+cluster
+1          0.984370  0.015630
+2          0.857479  0.142521
+3          0.781964  0.218036
+4          0.503865  0.496135
+5          0.912329  0.087671
+6          0.922755  0.077245
+7          0.974101  0.025899
+8          0.757366  0.242634
+</pre>
+<br><br>
+<br><br>
+<p class="body-text">
+8 clusters might seem like a lot at first, but it turns out we captured all of the important information. Lets dive into each group and see what happened there.
+    <br><br>
+    <b>Cluster 1</b> is made up of slightly younger group across all clusters, showing the lowest engagement and a conversion rate of just 1.6%. These customers tend to have low balances and short call durations, with almost no previous contact. For marketing, this group does not seem to offer much value, so instead of pushing through with telemarketing, it might make sense to switch towards digital avenues like social media or influencer campaigns. If current products do not appeal to them, it might be worth thinking about developing new offerings that match what they are looking for.
+    <br><br>
+    <b>Cluster 2</b> consists of slightly older customers who have a moderate conversion rate of 14.2%. They carry much higher balances and have had some previous contact, making them a more engaged audience with real financial capacity. There's definite potential here for more engagement. A smart move could be to offer products that suit their financial needs, like retirement planning or wealth management services. Direct mail campaigns or tailored offers could boost conversion even more. Since they are financially stronger, premium products might also catch their interest.
+    <br><br>
+    <b>Cluster 3</b> shows moderate engagement but a solid conversion rate of 21.8%. These customers are middle-aged, have moderate balances, and have been contacted before. They are already somewhat engaged, so the focus should be on keeping them engaged and introducing products that match what already is known about them from previous interactions.
+    <br><br>
+    <b>Cluster 4</b> is the best-performing group by far, with the conversion rate of 49.6%. They engage in long calls and show strong interest despite having had limited previous contact. This group is the most valuable, and we should focus on loyalty programs and perhaps referral programs to keep them involved. Upselling or cross-selling based on what they have purchased before would likely work well with this group.
+    <br><br>
+    <b>Cluster 5</b> has lower engagement and a conversion rate of 8.8%. They are younger, have the lowest balances, and have short calls. Similar to Cluster 1, the focus should be on a long-term strategy, not on quick conversions through telemarketing. Over time, developing products that suit their needs could lead to better outcomes.
+    <br><br>
+    <b>Cluster 6</b> has been contacted frequently but shows a low conversion rate of 2.5%. This group has likely been overexposed to our efforts, making them less receptive. It is important to cut back on the number of calls to avoid customer frustration. Offering useful information or promotions through channels like email or social media—without pushing too hard—could help rebuild trust. Further analysis of this cluster might uncover smaller sub-groups with more specific needs, giving better targeting opportunities.
+    <br><br>
+    <b>Cluster 7</b> consists of customers with high balances but low engagement, converting at 7.7%. They are middle-aged, have longer call durations, but show little interest in what is currently offered. The issue here might be that the products are not matching their financial goals. A more tailored approach could help to understand what they are looking for. Premium products or services that align with their wealth could be more appealing to them. Direct mail might work better than telemarketing for this group.
+    <br><br>
+    <b>Cluster 8</b> has moderate engagement and a healthy conversion rate of 24.3%. They have had significant previous contact and have a strong likelihood of converting. This group represents a typical customer segment that seems to respond well to current marketing strategy. The next step would be campaign optimization—analyzing what has worked in the past to refine the messaging and increase engagement further.
+    <br><br><br>
+
+For further improvements for our marketing team we could add some visualisations so that certain aspects are more visible.
+ </p>
+<br><br>
+
+<section><p style="font-size: 20px; text-align: center;" class="body-text"><b>Python code: bank_marketing.py (visualisations)</b></p>
+<div class="code-container2">
+<button class="toggle-code-button2" align="center">Show code</button>
+<pre id="python-code-cont2" class="python-code-cont2"><code class="language-python">
+import pandas as pd
+import numpy as np
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Load data
+df = pd.read_csv("bank-full.csv", sep=';')
+
+# Feature Engineering
+df['was_contacted'] = (df['pdays'] != -1).astype(int)
+max_pdays = df['pdays'].max()
+df['pdays_transformed'] = np.where(df['pdays'] == -1, 0, df['pdays'])
+df['pdays_transformed'] = np.log1p(df['pdays_transformed'])
+
+# Preprocessing
+categorical_features = ['job', 'marital', 'education', 'default', 'housing', 'loan', 'contact', 'month', 'poutcome']
+numerical_features = ['age', 'balance', 'duration', 'campaign', 'previous', 'pdays_transformed']
+
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', StandardScaler(), numerical_features),
+        ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_features),
+    ])
+
+preprocessed_data = preprocessor.fit_transform(df)
+
+# Extract scaled age, balance and duration after preprocessing
+scaled_age_balance = preprocessed_data[:, [0, 5, 11]]
+
+# Create scaler for age, balance and duration to inverse them for plotting later
+age_balance_scaler = StandardScaler()
+age_balance_scaler.fit(scaled_age_balance)
+
+# Clustering (KMeans)
+k = 8 
+kmeans = KMeans(n_clusters=k, random_state=42, n_init=10) 
+df['cluster'] = kmeans.fit_predict(preprocessed_data)
+
+# Create clusters
+for i in range(k):
+    cluster_data = df[df['cluster'] == i]
+
+# Engagement vs. Conversion (Scatter Plot)
+plt.figure(figsize=(10, 6))
+sns.scatterplot(data=df, x='previous', y='duration', hue='y')  # Assuming 'y' is the subscription outcome
+plt.title('Engagement vs. Conversion (All Clusters)')
+plt.xlabel('Previous Contacts')
+plt.ylabel('Call Duration')
+plt.legend(title='Subscribed?')
+plt.show()
+
+# Visualizations
+for i in range(k):
+    cluster_data = df[df['cluster'] == i]
+
+    # Simple Visualizations
+    plt.figure(figsize=(10, 5))
+    plt.subplot(1, 2, 1)
+    sns.histplot(data=cluster_data, x='balance', kde=True, label=f'Cluster {i+1}', color=sns.color_palette()[2])
+    plt.title(f'Balance Distribution - Cluster {i+1}')
+
+    plt.subplot(1, 2, 2)
+    sns.countplot(data=cluster_data, x='y', edgecolor="black", color=sns.color_palette()[2], alpha=0.7)  # Analyze subscription ('y') within each cluster
+    plt.title(f'Subscription Rate - Cluster {i+1}')
+
+    # Get the scaled numerical features for this cluster (age, balance and duration)
+    scaled_age_balance = cluster_data[['age', 'balance', 'duration']] 
+    original_age_balance = age_balance_scaler.inverse_transform(scaled_age_balance)
+
+    # Create a temporary DataFrame with the original age, balance and duration data
+    temp_df = pd.DataFrame(original_age_balance, columns=['age', 'balance', 'duration'])
+
+    # Initialise figure for each cluster
+    fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(15, 10))
+    fig.suptitle(f"Cluster {i+1} Analysis", fontsize=16)
+
+    # Advanced visualisation
+    # 1. Age Distribution
+    sns.histplot(
+        data=temp_df,
+        x="age",
+        kde=True,
+        ax=axes[0, 0],
+        bins=10,
+        color=sns.color_palette()[0],
+    )
+    axes[0, 0].set_title("Age Distribution")
+    axes[0, 0].set_xlabel("Age")
+
+    # 2. Balance Distribution
+    sns.histplot(
+        data=temp_df,
+        x="balance",
+        kde=True,
+        ax=axes[0, 1],
+        bins=20,
+        color=sns.color_palette()[2],
+    )
+    axes[0, 1].set_title("Balance Distribution")
+    axes[0, 1].set_xlabel("Balance")
+
+    # 3 Duration distribution
+    sns.histplot(
+        data=temp_df,
+        x="duration",
+        kde=True,
+        ax=axes[0, 2],
+        bins=20,
+        color=sns.color_palette()[1],
+    )
+    axes[0, 2].set_title("Duration Distribution")
+    axes[0, 2].set_xlabel("Duration")
+
+    # 4. Campaign Distribution
+    sns.histplot(
+        data=cluster_data,
+        x="campaign",
+        ax=axes[1, 0],
+        bins=10,
+        color=sns.color_palette()[4],
+    )
+    axes[1, 0].set_title("Campaign Distribution")
+    axes[1, 0].set_xlabel("Campaign")
+
+    # 5. Education Distribution
+    sns.countplot(
+        data=cluster_data,
+        x="education",
+        ax=axes[1, 1],
+        order=cluster_data["education"].value_counts().index,
+        color=sns.color_palette()[3],
+        alpha=0.8,
+        edgecolor="black", 
+    )
+    axes[1, 1].set_title("Education Distribution")
+    axes[1, 1].set_xlabel("Education")
+    axes[1, 1].tick_params(axis="x", rotation=45)
+
+    # 6. Job Distribution
+    sns.countplot(
+        data=cluster_data,
+        x="job",
+        ax=axes[1, 2],
+        order=cluster_data["job"].value_counts().index,
+        color=sns.color_palette()[6],
+        edgecolor="black", 
+    )
+    axes[1, 2].set_title("Job Distribution")
+    axes[1, 2].set_xlabel("Job")
+    axes[1, 2].tick_params(axis="x", rotation=45)
+
+plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+plt.show()
+</code></pre>
+<script>
+    hljs.highlightAll();
+</script>
+<button class="copy-button2" type="button">
+<img src="../visuals/button.jpg" alt="Copy Button" style="margin: 0 auto; width: 20px; height: 20px;">
+<span class="copy-message2">Copied!</span>
+<div class="button-dim-overlay2"></div>
+</button>
+<script src="../scripts/copy2.js"></script>
+</section></div>
+
+<br><br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Scatter plot: Engagement and Previous Contact vs. Conversion</b></p>
+
+<img src="../visuals/bm_sp.png" class="float">
+<br><br>
+<p class="body-text">
+We can clearly see some correlation here. We could calculate <b>Pearson's correlation</b> coefficient or <b>Spearmann correlation</b> coefficient to reduce impact of outliers and 
+test the hypothesis that they are statistically significant.
+But we could look at each cluster independently as well to see if there are diffrences within clusters.
+
+</p>
+<br><br><br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Example visualisations (Cluster 1)</b></p>
+<img src="../visuals/bm_c11.png" class="float">
+<br><br>
+<img src="../visuals/bm_c12.png" class="float">
+<br><br>
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Example visualisations (Cluster 4)</b></p>
+<img src="../visuals/bm_c41.png" class="float">
+<br><br>
+<img src="../visuals/bm_c42.png" class="float">
+<br><br>
+<br><br>
+<p class="body-text">
+These visualisations certainly would help our marketing team understand better what actions should be undertaken in order
+ to increase revenue. For further refinements we could merge Cluster 1 and Cluster 5 based on similarities as well as Cluster 3 and Cluster 8. 
+We could then perhaps provide more granularity for Cluster 6 to see why they have been over-contacted.
+<br><br>
+
+</p><br><br><br><br></div></section></body></html>

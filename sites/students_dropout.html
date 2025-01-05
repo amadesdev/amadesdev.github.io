@@ -1,0 +1,361 @@
+<html lang="en"><head>
+<link rel="stylesheet" href="../css_styles/site_style2.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>College dropout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;900&amp;display=swap" rel="stylesheet">
+
+<link rel="icon" href="../visuals/amadesdev.png">
+<link rel="stylesheet" href="../scripts/hljs/styles/atom-one-light.css">
+<script src="../scripts/hljs/highlight.js"></script>
+
+<body>
+<main>
+<div id="nav">
+    <h2><a href="../amadesdev.html">Projects</a></h2>
+    <h2><a href="./about_me.html">About Me</a></h2>
+</div>
+
+<section>
+<p style="font-size: 70px; text-align: center;" class="body-text"><b>College dropout</b></p>
+<p style="font-size: 16px" class="body-text"><i>Aleksander Majkowski</i></p>
+
+<p class="body-text"><a rel="noopener noreferrer" href="https://archive.ics.uci.edu/dataset/697/predict+students+dropout+and+academic+success" target="blank"><b>This dataset</b></a> 
+    was compiled from multiple databases at a higher education institution (college). 
+    It focuses on undergraduate students enrolled in a variety of programs, including agronomy, design, education, nursing, journalism, management, social service, and technologies.
+<br><br>
+    There are information about students' personal backgrounds, such as age, gender, socioeconomic status, about the chosen undergraduate degree program and about 
+    first and second semester grades, including GPA and specific course grades.
+    <br><br>
+    The dataset could be used to develop classification models that can identify students at risk of dropping out or struggling academically. This helps institutions provide timely support and interventions to improve student success rates.
+    One significant challenge is the class imbalance. The dataset contains a disproportionate number of students who are no longer studying (graduated or dropped out) versus students who take longer than usual to finish their studies, 
+    which might make it difficult to accurately classify academic struggles.
+<br><br>
+Before we start analysis we would like as usual to check a few things about this dataset.
+<br><br>
+</p>
+
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Python code</b></p>
+<div class="code-container">
+<button class="toggle-code-button" align="center">Show code</button>
+
+<pre id="python-code-cont" class="python-code-cont"><code class="language-python">
+import pandas as pd
+df = pd.read_csv('students.csv', sep=';')
+
+# Basic information about the dataset
+print(df.info())
+print()
+# Names of columns
+print(df.columns)
+print()
+
+def find_empty_values(df):
+    
+    # Check for empty rows
+    empty_rows = df[df.isnull().all(axis=1)].index
+    if not empty_rows.empty:
+        print("Empty rows:", empty_rows)
+
+    # Check for empty columns
+    empty_cols = df.columns[df.isnull().all()]
+    if not empty_cols.empty:
+        print("Empty columns:", empty_cols)
+
+    # Check for partially empty rows and columns
+    for col in df.columns:
+        empty_indices = df[df[col].isnull()].index
+        if not empty_indices.empty and empty_indices.min() != empty_indices.max():
+            print(f"Values in rows {empty_indices.min()} to {empty_indices.max()} empty in column {col}")
+
+find_empty_values(df)
+</code></pre>
+<script>
+    hljs.highlightAll();
+</script>
+
+<button class="copy-button" type="button">
+<img class="copy-image" src="../visuals/button.jpg" alt="Copy Button" style="margin: 0 auto; width: 20px; height: 20px;">
+<span class="copy-message">Copied!</span>
+<div class="button-dim-overlay"></div></button>
+<script src="../scripts/copy.js"></script>
+</section>
+</div>
+
+<br><br>
+<p class="body-text"> The code provides us with basic information about dataset especially its dimension, size, in what dtype is the data stored and custom function that tells us whether the dataset contains any empty
+    sectors. Also it gives us the exact column names, which will be useful later on.
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Output (fragment)</b></p>
+<div class="img"><img src="../visuals/SD_t.png"></div>
+<br><br>
+<p class="body-text">The name of column 'Daytime\evening attendence' has '\t' sign at the end indicating perhaps an escape sequence. This is important for us,
+    because we will access column by names while choosing continous types of variables and categorical types of variables fo further preprocessing. But since we do not see that the sign itself
+    poses any significance for our dataset we can either delete it or acces this column name with this character.
+<br><br>
+<p class="body-text">For our classification task we will use two models: Random Forest and Logistic Regression. At the end we will evaluate which of them performed better.
+Both of these models are well suited for this multi classification task. We will split the data into 70% train and 30% test data, map independent variables and dependant variables to X and y dataframes respectivly
+and employ the models. We will also standarize numerical features and encode categorical features into N binary columns. Then we will check which model performed better in terms of precision recall, f1 score, support and accuracy.
+We will also deploy confusion matrices to see in which areas our models underperform.</p>
+<br><br>
+
+<section><p style="font-size: 20px; text-align: center;" class="body-text"><b>Python code: students_dropout.py</b></p>
+<div class="code-container2">
+<button class="toggle-code-button2" align="center">Show code</button>
+<pre id="python-code-cont2" class="python-code-cont2"><code class="language-python">
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report, accuracy_score
+from sklearn.metrics import confusion_matrix
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Load the dataset
+df = pd.read_csv('students.csv', sep=';')
+
+# Separate features and target
+X = df.drop(columns=df.columns[-1])
+y = df.iloc[:, -1]
+
+# Converts ['Graduate', 'Enrolled', 'Dropout'] into numeric labels [0, 1, 2] respectivly using LabelEncoder
+label_mapping = {'Graduate': 0, 'Enrolled': 1, 'Dropout': 2}
+y = y.map(label_mapping)
+
+# Define categorical and continuous features
+categorical_features = [
+    'Marital status', 'Application mode', 'Application order','Course', 'Daytime/evening attendance\t',
+    'Previous qualification', 'Nacionality', 'Mother\'s qualification', 'Father\'s qualification',
+    'Mother\'s occupation', 'Father\'s occupation', 'Displaced', 'Educational special needs',
+    'Debtor', 'Tuition fees up to date', 'Gender', 'Scholarship holder', 'International'
+]
+
+continuous_features = [
+    'Previous qualification (grade)', 'Admission grade', 'Age at enrollment',
+    'Curricular units 1st sem (credited)', 'Curricular units 1st sem (enrolled)',
+    'Curricular units 1st sem (evaluations)', 'Curricular units 1st sem (approved)',
+    'Curricular units 1st sem (grade)', 'Curricular units 1st sem (without evaluations)',
+    'Curricular units 2nd sem (credited)', 'Curricular units 2nd sem (enrolled)',
+    'Curricular units 2nd sem (evaluations)', 'Curricular units 2nd sem (approved)',
+    'Curricular units 2nd sem (grade)', 'Curricular units 2nd sem (without evaluations)',
+    'Unemployment rate', 'Inflation rate', 'GDP'
+]
+
+# Preprocessing function
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', StandardScaler(), continuous_features),
+        ('cat', OneHotEncoder(handle_unknown='error'), categorical_features)
+    ])
+# Preprocess the data
+X = preprocessor.fit_transform(X)
+
+# Split data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, stratify=y)
+
+# Random Forest Model
+rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
+
+# Logistic Regression Model
+lr_model = LogisticRegression(solver='newton-cg', max_iter=1000, random_state=42)
+
+# Train Random Forest Model
+rf_model.fit(X_train, y_train)
+
+# Predict with Random Forest
+y_pred_rf = rf_model.predict(X_test)
+
+# Evaluate Random Forest Model
+print("Random Forest Classification Report:")
+print(classification_report(y_test, y_pred_rf))
+
+# Train Logistic Regression Model
+lr_model.fit(X_train, y_train)
+
+# Predict with Logistic Regression
+y_pred_lr = lr_model.predict(X_test)
+
+# Evaluate Logistic Regression Model
+print("Logistic Regression Classification Report:")
+print(classification_report(y_test, y_pred_lr))
+
+print()
+print(f"Random Forest Accuracy: {accuracy_score(y_test, y_pred_rf)}")
+print(f"Logistic Regression Accuracy: {accuracy_score(y_test, y_pred_lr)}")
+
+# Calculate the confusion matrix
+cm = confusion_matrix(y_test, y_pred_rf)
+cm2= confusion_matrix(y_test, y_pred_lr)
+
+# Create a heatmap of the confusion matrix for Random Forest
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+plt.xlabel('Predicted RF')
+plt.ylabel('True RF')
+plt.show()
+
+# Create a heatmap of the confusion matrix for Logistic Regression
+sns.heatmap(cm2, annot=True, fmt='d', cmap='Blues')
+plt.xlabel('Predicted LR')
+plt.ylabel('True LR')
+plt.show()
+</code></pre>
+<script>
+    hljs.highlightAll();
+</script>
+<button class="copy-button2" type="button">
+<img src="../visuals/button.jpg" alt="Copy Button" style="margin: 0 auto; width: 20px; height: 20px;">
+<span class="copy-message2">Copied!</span>
+<div class="button-dim-overlay2"></div>
+</button>
+<script src="../scripts/copy2.js"></script>
+</section></div>
+
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Output</b></p>
+<div class="img"><img src="../visuals/sd_r.png"></div>
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Confusion matrix: Random forest</b></p>
+<div class="img"><img src="../visuals/sd_cm_rf.png"></div>
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Confusion Matrix: Logistic Regression</b></p>
+<div class="img"><img src="../visuals/sd_cm_lr.png"></div>
+<br><br>
+<p class="body-text">
+In this example the Logistic Regression model performed slightly better than Random Forest. But nevertheless I would say the model does not have as high accuracy nor precision as we would desire.
+It can be seen both looking at the row for predictions of class "1" (enrolled at the end of normal course lenght) as well as looking on the middle row in both confusion matrices that our models 
+do not perform well in terms of correctly classifying students who have some academic struggles, but have not dropped out yet.
+<br><br>
+For further improvements we could of course experiment with number of parameters in random forest function to check if there are improvements. But perhaps there is another way of improving the model.
+We could use Voting Classifier that combines both of our RF and LR models to find optimal solution. Let's see how this would work out.
+<br><br>
+<section><p style="font-size: 20px; text-align: center;" class="body-text"><b>Python code: students_dropout.py (improved)</b></p>
+<div class="code-container3">
+<button class="toggle-code-button3" align="center">Show code</button>
+<pre id="python-code-cont3" class="python-code-cont3"><code class="language-python">
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report, accuracy_score
+from sklearn.metrics import confusion_matrix
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.ensemble import VotingClassifier
+
+# Load the dataset
+df = pd.read_csv('students.csv', sep=';')
+
+# Separate features and target
+X = df.drop(columns=df.columns[-1])
+y = df.iloc[:, -1]
+
+# Converts ['Graduate', 'Enrolled', 'Dropout'] into numeric labels [0, 1, 2] respectivly using LabelEncoder
+label_mapping = {'Graduate': 0, 'Enrolled': 1, 'Dropout': 2}
+y = y.map(label_mapping)
+
+# Define categorical and continuous features
+categorical_features = [
+    'Marital status', 'Application mode', 'Application order','Course', 'Daytime/evening attendance\t',
+    'Previous qualification', 'Nacionality', 'Mother\'s qualification', 'Father\'s qualification',
+    'Mother\'s occupation', 'Father\'s occupation', 'Displaced', 'Educational special needs',
+    'Debtor', 'Tuition fees up to date', 'Gender', 'Scholarship holder', 'International'
+]
+
+continuous_features = [
+    'Previous qualification (grade)', 'Admission grade', 'Age at enrollment',
+    'Curricular units 1st sem (credited)', 'Curricular units 1st sem (enrolled)',
+    'Curricular units 1st sem (evaluations)', 'Curricular units 1st sem (approved)',
+    'Curricular units 1st sem (grade)', 'Curricular units 1st sem (without evaluations)',
+    'Curricular units 2nd sem (credited)', 'Curricular units 2nd sem (enrolled)',
+    'Curricular units 2nd sem (evaluations)', 'Curricular units 2nd sem (approved)',
+    'Curricular units 2nd sem (grade)', 'Curricular units 2nd sem (without evaluations)',
+    'Unemployment rate', 'Inflation rate', 'GDP'
+]
+
+# Preprocessing function
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', StandardScaler(), continuous_features),
+        ('cat', OneHotEncoder(handle_unknown='error'), categorical_features)
+    ])
+# Preprocess the data
+X = preprocessor.fit_transform(X)
+
+# Split data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, stratify=y)
+
+# Random Forest Model
+rf_model = RandomForestClassifier(n_estimators=200, random_state=42)
+
+# Logistic Regression Model
+lr_model = LogisticRegression(solver='newton-cg', max_iter=1000, random_state=42)
+
+# Train Random Forest Model
+rf_model.fit(X_train, y_train)
+
+# Predict with Random Forest
+y_pred_rf = rf_model.predict(X_test)
+
+# Train Logistic Regression Model
+lr_model.fit(X_train, y_train)
+
+# Predict with Logistic Regression
+y_pred_lr = lr_model.predict(X_test)
+
+# Create Voting Classifier
+voting_clf = VotingClassifier(estimators=[('rf', rf_model), ('lr', lr_model)], voting='hard')
+
+# Fit the Voting Classifier and predict
+voting_clf.fit(X, y)
+y_pred = voting_clf.predict(X_test)
+
+# Evaluate Voting Classifier
+print("Voting Classifyer Classification Report:")
+print(classification_report(y_test, y_pred))
+
+# VC accuracy
+print()
+print(f"Voting Classifier Accuracy: {accuracy_score(y_test, y_pred)}")
+
+# Calculate the confusion matrix
+cm = confusion_matrix(y_test, y_pred)
+
+# Create a heatmap of the confusion matrix for Voting Classifier
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+plt.xlabel('Predicted VC')
+plt.ylabel('True VC')
+plt.show()
+</code></pre>
+<script>
+    hljs.highlightAll();
+</script>
+<button class="copy-button3" type="button">
+<img src="../visuals/button.jpg" alt="Copy Button" style="margin: 0 auto; width: 20px; height: 20px;">
+<span class="copy-message3">Copied!</span>
+<div class="button-dim-overlay3"></div>
+</button>
+<script src="../scripts/copy3.js"></script>
+</section></div>
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Output</b></p>
+<div class="img"><img src="../visuals/sd_rb.png"></div>
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Confusion Matrix: Voting Classifier</b></p>
+<div class="img"><img src="../visuals/sd_cm_vc.png"></div>
+<br><br>
+<p class="body-text">
+We have indeed improved our model. Accuracy went up around 10%. We can see that model is good at identifying classess that are below or equal to (upper diagonal of matrix empty).
+We can also see from recall score for class 1 and from confusion matrix looking at middle row, that our model does not classify students who are still enrolled after normal course of study as good
+as it classifies graduated and dropped out students classes (0 and 2 respectivly). It could mean that prolonged duration of study in our dataset might be perhaps due to specific circumstances
+which are not reflected in our data (eg. health related issues).
+<br><br>
+For further model improvement we could employ features selection, as some variables eg. GDP might not directly influence study outcomes. Another method of improving model could be choosing
+another model like SVM (Support Vector Machine) or handle class imbalance using oversampling, undersampling or class weighting.
+</p><br><br><br><br></div></section></body></html>

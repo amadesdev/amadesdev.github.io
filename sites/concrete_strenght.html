@@ -1,0 +1,278 @@
+<html lang="en"><head>
+<link rel="stylesheet" href="../css_styles/site_style2.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Concrete compressive strenght</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;900&amp;display=swap" rel="stylesheet">
+
+<link rel="icon" href="../visuals/amadesdev.png">
+<link rel="stylesheet" href="../scripts/hljs/styles/atom-one-light.css">
+<script src="../scripts/hljs/highlight.js"></script>
+
+<body>
+<main>
+<div id="nav">
+    <h2><a href="../amadesdev.html">Projects</a></h2>
+    <h2><a href="./about_me.html">About Me</a></h2>
+</div>
+
+<section>
+<p style="font-size: 70px; text-align: center;" class="body-text"><b>Concrete strenght</b></p>
+<p style="font-size: 16px" class="body-text"><i>Aleksander Majkowski</i></p>
+
+<p class="body-text">
+    Compressive strenght of concrete determins the extent of the ability to withstand pressure that tries to compress it. It is very important measure that can be used for example in structural engineering. 
+    Structural engineers calculate the loads and stresses on a structure to determine its necessary size and configuration so that it does not collapse.
+    The data comes from this <a rel="noopener noreferrer" href="https://archive.ics.uci.edu/dataset/165/concrete+compressive+strength" target="blank"><b>dataset</b></a>. 
+<br><br>
+   There are continous variables concerning the amount of certain components in concrete (Cement, Blast Furnace Slag, Fly Ash, Water, Superplasticizer, Coarse Aggregate, Fine Aggregate) and one discrete variable
+   concerning age of conrete (in days).
+    <br><br>
+    The dataset could be used to develop regression models that can identify compressive strenght of concrete which could perhaps aid in a better calculations for engineers and more efficient design of big structures.
+Before we start analysis we will check a few things about this dataset.
+<br><br>
+</p>
+
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Python code</b></p>
+<div class="code-container">
+<button class="toggle-code-button" align="center">Show code</button>
+
+<pre id="python-code-cont" class="python-code-cont"><code class="language-python">
+import pandas as pd
+df = pd.read_excel('Concrete_Data.xls')
+
+# Basic information about the dataset
+print(df.info())
+print()
+# Names of columns
+print(df.columns)
+print()
+
+
+def find_empty_values(df):
+    
+    # Check for empty rows
+    empty_rows = df[df.isnull().all(axis=1)].index
+    if not empty_rows.empty:
+        print("Empty rows:", empty_rows)
+
+    # Check for empty columns
+    empty_cols = df.columns[df.isnull().all()]
+    if not empty_cols.empty:
+        print("Empty columns:", empty_cols)
+
+    # Check for partially empty rows and columns
+    for col in df.columns:
+        empty_indices = df[df[col].isnull()].index
+        if not empty_indices.empty and empty_indices.min() != empty_indices.max():
+            print(f"Values in rows {empty_indices.min()} to {empty_indices.max()} empty in column {col}")
+
+find_empty_values(df)
+</code></pre>
+<script>
+    hljs.highlightAll();
+</script>
+
+<button class="copy-button" type="button">
+<img class="copy-image" src="../visuals/button.jpg" alt="Copy Button" style="margin: 0 auto; width: 20px; height: 20px;">
+<span class="copy-message">Copied!</span>
+<div class="button-dim-overlay"></div></button>
+<script src="../scripts/copy.js"></script>
+</section>
+</div>
+
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Output (fragment)</b></p>
+<div class="img"><img src="../visuals/ccs_t.png"></div>
+<br><br>
+<p class="body-text">
+    Our code told us important thing to consider in our analysis code. The target variable has space at the end, which means that if we typed the name of variable without the space
+    pandas library would not be able to access it. Since we are focused on data analysis more and not datebase managment we will access it using space at the end. But of course the dependant variable name could be changed
+    using
+    <br><br><pre class="pre-move">df.rename(columns={'Concrete compressive strength(MPa, megapascals) ': 'Concrete compressive strength(MPa, megapascals)'}, inplace=True)</pre><br><br>
+
+<p class="body-text">At first step for our regression task we will use three models: Random Forest Regressor (RFR), Gradient Boosting Regressor (GBR) and SVR. 
+We will split the data into 80% train and 20% test data. We will also scale variables using MinMaxScaler.
+At the end we will evaluate which of them performed better in terms of R<sup>2</sup>, RMSE and MAPE. </p>
+<br><br>
+
+<section><p style="font-size: 20px; text-align: center;" class="body-text"><b>Python code: concrete_strenght.py</b></p>
+<div class="code-container2">
+<button class="toggle-code-button2" align="center">Show code</button>
+<pre id="python-code-cont2" class="python-code-cont2"><code class="language-python">
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.svm import SVR
+from sklearn.metrics import root_mean_squared_error, r2_score
+
+# Load the dataset (replace 'concrete_data.csv' with your file)
+data = pd.read_excel('concrete_data.xls')
+
+# Separate features (X) and target (y)
+X = data.drop('Concrete compressive strength(MPa, megapascals) ', axis=1)
+y = data['Concrete compressive strength(MPa, megapascals) ']
+
+# Split data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# MinMax scaling
+scaler = MinMaxScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# Model 1: Random Forest
+rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
+rf_model.fit(X_train_scaled, y_train)
+rf_predictions = rf_model.predict(X_test_scaled)
+
+# Model 2: Gradient Boosting
+gb_model = GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, random_state=42)
+gb_model.fit(X_train_scaled, y_train)
+gb_predictions = gb_model.predict(X_test_scaled)
+
+# Model 3: Support Vector Regression
+svr_model = SVR(kernel='rbf', C=100) # Adjust hyperparameters (C, kernel)
+svr_model.fit(X_train_scaled, y_train)
+svr_predictions = svr_model.predict(X_test_scaled)
+
+# Evaluate models
+def evaluate_model(predictions, model_name):
+    rmse = root_mean_squared_error(y_test, predictions)
+    r2 = r2_score(y_test, predictions)
+    mape = np.mean(np.abs((y_test - predictions) / y_test)) * 100  
+    print(f"{model_name}:")
+    print(f"  RMSE: {rmse:.2f}")
+    print(f"  R-squared: {r2:.2f}")
+    print(f"  MAPE: {mape:.2f}%") 
+
+evaluate_model(rf_predictions, "Random Forest")
+evaluate_model(gb_predictions, "Gradient Boosting")
+evaluate_model(svr_predictions, "Support Vector Regression")
+</code></pre>
+<script>
+    hljs.highlightAll();
+</script>
+<button class="copy-button2" type="button">
+<img src="../visuals/button.jpg" alt="Copy Button" style="margin: 0 auto; width: 20px; height: 20px;">
+<span class="copy-message2">Copied!</span>
+<div class="button-dim-overlay2"></div>
+</button>
+<script src="../scripts/copy2.js"></script>
+</section></div>
+
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Output</b></p>
+<div class="img"><img src="../visuals/ccs_1.png"></div>
+<br><br>
+<p class="body-text">
+As we see Random Forest Regressor has the best evaluation metrics - the smallest RMSE and MAPE and highest R<sup>2</sup>. I think this is a reasonable result given our dataset. Of course in construction we want
+the best possible result, the smallest MAPE in particular, so we could improve our model by using bootstrap aggregation (bagging) to reduce variation a bit. We then will use stacked model combined of bagged RFR, GBR and pure SVR, and then 
+combine stacked regressor and pure RFR and GBR to make yet another model by using Voting Regressor. We will also employ PolynomialFeatures from sklearn to capture underlying nonlinear dependencies (which I think
+is reasonable to assume here).
+<br><br>
+<section><p style="font-size: 20px; text-align: center;" class="body-text"><b>Python code: concrete_strenght.py (improved)</b></p>
+<div class="code-container3">
+<button class="toggle-code-button3" align="center">Show code</button>
+<pre id="python-code-cont3" class="python-code-cont3"><code class="language-python">
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, StackingRegressor, VotingRegressor, BaggingRegressor
+from sklearn.svm import SVR
+from sklearn.metrics import r2_score, make_scorer, root_mean_squared_error
+
+# Load the dataset
+data = pd.read_excel('concrete_data.xls')
+
+# Separate features
+X = data.drop('Concrete compressive strength(MPa, megapascals) ', axis=1)
+y = data['Concrete compressive strength(MPa, megapascals) ']
+
+# Split data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# MinMax scaling
+scaler = MinMaxScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# Polynomial Features
+poly = PolynomialFeatures(degree=2, interaction_only=True, include_bias=False)
+X_train_poly = poly.fit_transform(X_train_scaled)
+X_test_poly = poly.transform(X_test_scaled)
+
+# MAPE scorer
+def mape_function(y_true, y_pred):
+    return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+mape_scorer = make_scorer(mape_function, greater_is_better=False)
+
+# Defining Models with some parameters
+rf_model = RandomForestRegressor(n_estimators=200, max_depth=10, min_samples_split=5, random_state=42)
+gb_model = GradientBoostingRegressor(n_estimators=150, learning_rate=0.1, max_depth=3, random_state=42)
+svr_model = SVR(kernel='rbf', C=100, epsilon=0.1) # Example parameters, tune if necessary
+
+# Step 1: Bagging individual models
+bagged_rf = BaggingRegressor(estimator=rf_model, n_estimators=5, random_state=42)
+bagged_rf.fit(X_train_poly, y_train)  # Fit on X_train_poly
+bagged_gb = BaggingRegressor(estimator=gb_model, n_estimators=5, random_state=42)
+bagged_gb.fit(X_train_poly, y_train)  # Fit on X_train_poly
+
+# Step 2: Stacking of bagged models and SVR
+estimators = [
+    ('bagged_rf', bagged_rf),
+    ('bagged_gb', bagged_gb),
+    ('svr', svr_model),
+]
+stacked_model = StackingRegressor(estimators=estimators, final_estimator=RandomForestRegressor(random_state=42))
+
+# Step 3: Voting Regressor (combining stacked model with other strong models)
+voting_estimators = [
+    ('stacked', stacked_model),
+    ('rf', rf_model), # Original Random Forest
+    ('gb', gb_model)   # Original Gradient Boosting
+]
+voting_regressor = VotingRegressor(estimators=voting_estimators)
+
+# Fit final Voting Regressor
+voting_regressor.fit(X_train_poly, y_train)
+
+# Evaluate the model function
+def evaluate_model(predictions, model_name):
+    rmse = root_mean_squared_error(y_test, predictions)
+    r2 = r2_score(y_test, predictions)
+    mape = np.mean(np.abs((y_test - predictions) / y_test)) * 100  
+    print(f"{model_name}:")
+    print(f"  RMSE: {rmse:.2f}")
+    print(f"  R-squared: {r2:.2f}")
+    print(f"  MAPE: {mape:.2f}%") 
+
+# Evaluation
+voting_predictions = voting_regressor.predict(X_test_poly)
+evaluate_model(voting_predictions, "Voting Regressor (Bagged)")
+</code></pre>
+<script>
+    hljs.highlightAll();
+</script>
+<button class="copy-button3" type="button">
+<img src="../visuals/button.jpg" alt="Copy Button" style="margin: 0 auto; width: 20px; height: 20px;">
+<span class="copy-message3">Copied!</span>
+<div class="button-dim-overlay3"></div>
+</button>
+<script src="../scripts/copy3.js"></script>
+</section></div>
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Output</b></p>
+<div class="img"><img src="../visuals/ccs_2.png"></div>
+<br><br>
+<p class="body-text">
+We have indeed further improved our model. We have decreased MAPE by around 1% and increased R<sup>2</sup> by around 0.03. While it might be small improvement, it is still a valuable one 
+ because it shows the extent to which improving models based on this particular data can help us evaluate concrete compression strenght.
+    <br><br>
+    For further improvements we could experiment with number of parameters in RFR, GBR and SVR models and we could experiment with further data preprocessing to check if there are improvements.
+</p><br><br><br><br></div></section></body></html>

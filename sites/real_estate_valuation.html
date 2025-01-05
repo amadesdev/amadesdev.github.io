@@ -1,0 +1,361 @@
+<html lang="en"><head>
+<link rel="stylesheet" href="../css_styles/site_style2.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Real estate valuation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;900&amp;display=swap" rel="stylesheet">
+
+<link rel="icon" href="../visuals/amadesdev.png">
+<link rel="stylesheet" href="../scripts/hljs/styles/atom-one-light.css">
+<script src="../scripts/hljs/highlight.js"></script>
+
+<body>
+<main>
+<div id="nav">
+    <h2><a href="../amadesdev.html">Projects</a></h2>
+    <h2><a href="./about_me.html">About Me</a></h2>
+</div>
+
+<section>
+<p style="font-size: 60px; text-align: center;" class="body-text"><b>Real estate valuation</b></p>
+<p style="font-size: 16px" class="body-text"><i>Aleksander Majkowski</i></p>
+
+<p class="body-text">Here is <a rel="noopener noreferrer" href="https://archive.ics.uci.edu/dataset/477/real+estate+valuation+data+set" target="blank"><b>dataset</b></a> 
+     concerning valuation for properties located in Sindian District, New Taipei City, Taiwan. The price is measured in local currency per local measerment unit - ping (which equals 400/121 square meters).
+<br><br>
+    What would be of great interest for us is to predict prices of real estate based on input variables such as: <i>transaction date, house age, 
+    distance to the nearest MRT station, number of convenience stores, latitude and longitude</i>.
+    To achieve this we will perform regression task, since price - regressand is continous variable.
+<br><br>
+Before we start analysis we will as usual to check a few things about this dataset. But since there are no surprises in data & in data labels this code section will be skipped. 
+The code functionalities were used the same as in <a href="../sites/students_dropout.html"><b>college dropout</b></a> multiclass classification task.
+<br><br>
+For this task 3 models were chosen: SVR, XGBoost regressor and Random Forest Regressor. Evaluation of each model in terms of: R<sup>2</sup>, RMSE, MAPE, 20% and 10% hit rate will be employed.
+Below is shown the code that performs this analysis.
+<br><br>
+</p>
+
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Python code: real_estate.py</b></p>
+<div class="code-container">
+<button class="toggle-code-button" align="center">Show code</button>
+
+<pre id="python-code-cont" class="python-code-cont"><code class="language-python">
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.svm import SVR
+from sklearn.ensemble import RandomForestRegressor
+from xgboost import XGBRegressor
+from sklearn.metrics import root_mean_squared_error, r2_score
+from sklearn.metrics import mean_absolute_percentage_error as MAPE
+
+# Load data
+df = pd.read_excel('Real estate valuation data set.xlsx')
+X = df.drop(['Y house price of unit area', 'No'], axis=1)
+y = df['Y house price of unit area']
+
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Scale numerical features
+numerical_features = ['X1 transaction date', 'X2 house age', 'X3 distance to the nearest MRT station',
+                        'X4 number of convenience stores', 'X5 latitude', 'X6 longitude']
+scaler = MinMaxScaler()
+X_train[numerical_features] = scaler.fit_transform(X_train[numerical_features])
+X_test[numerical_features] = scaler.transform(X_test[numerical_features])
+
+
+# Define models with default hyperparameters
+models = {
+    'SVR': SVR(),
+    'RandomForestRegressor': RandomForestRegressor(random_state=42),
+    'XGBRegressor': XGBRegressor(random_state=42)
+}
+
+# Hit rate calculation
+def calculate_hit_rate(y_true, y_pred, percentage_error):
+    error = np.abs(y_true - y_pred)
+    within_threshold = (error / y_true) <= (percentage_error / 100.0)
+    hit_rate = np.mean(within_threshold) * 100
+    return hit_rate
+
+# Train and evaluate model metrics
+results = {}
+for name, model in models.items():
+    model.fit(X_train, y_train)
+
+    y_pred = model.predict(X_test)
+    rmse = root_mean_squared_error(y_test, y_pred)
+    r2 = r2_score(y_test, y_pred)
+
+    rmse = root_mean_squared_error(y_test, y_pred)
+    r2 = r2_score(y_test, y_pred)
+    mape = MAPE(y_test, y_pred)
+    hit_rate_20 = calculate_hit_rate(y_test, y_pred, 20)
+    hit_rate_10 = calculate_hit_rate(y_test, y_pred, 10)
+
+    results[name] = {'RMSE': rmse, 'R^2': r2, 'MAPE': mape}
+
+    print(f"{name} MAPE: {mape}")
+    print(f"{name} - 20% Hit Rate: {hit_rate_20:.2f}%, 10% Hit Rate: {hit_rate_10:.2f}%")
+    print(f"{name} RMSE: {rmse}")
+    print(f"{name} R^2: {r2}\n")
+
+model_order = ['SVR', 'XGBRegressor', 'RandomForestRegressor']
+
+# Plotting RMSE
+plt.figure(figsize=(10, 6))
+plt.bar(model_order, [results[model]['RMSE'] for model in model_order])
+plt.ylabel('RMSE')
+title = 'RMSE for Different Regression Models (Default Hyperparameters)'
+plt.title(title)
+plt.show()
+
+# Plotting R-squared
+plt.figure(figsize=(10, 6))
+plt.bar(model_order, [results[model]['R^2'] for model in model_order])
+plt.ylabel('R-squared')
+title = 'R-squared for Different Regression Models (Default Hyperparameters)'
+plt.title(title)
+plt.show()
+
+# Plotting MAPE
+plt.figure(figsize=(10, 6))
+plt.bar(model_order, [results[model]['MAPE'] for model in model_order])
+plt.ylabel('MAPE')
+title = 'MAPE for Different Regression Models (Default Hyperparameters)'
+plt.title(title)
+plt.show()
+</code></pre>
+<script>
+    hljs.highlightAll();
+</script>
+
+<button class="copy-button" type="button">
+<img class="copy-image" src="../visuals/button.jpg" alt="Copy Button" style="margin: 0 auto; width: 20px; height: 20px;">
+<span class="copy-message">Copied!</span>
+<div class="button-dim-overlay"></div></button>
+<script src="../scripts/copy.js"></script>
+</section>
+</div>
+
+<br><br>
+<p class="body-text"> The code splits data into 80% training and 20% testing, trains and evalutes models based on the afromentioned parameters. It also plots boxes for better visualisation of model performance.
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Output</b></p>
+<pre class="pre-move">
+SVR MAPE: 0.19045427492998981
+SVR - 20% Hit Rate: 71.08%, 10% Hit Rate: 42.17%
+SVR RMSE: 7.693902925055174
+SVR R^2: 0.6471373845408592
+
+RandomForestRegressor MAPE: 0.12090644989449933
+RandomForestRegressor - 20% Hit Rate: 83.13%, 10% Hit Rate: 56.63%
+RandomForestRegressor RMSE: 5.680791752324127
+RandomForestRegressor R^2: 0.8076332613311863
+
+
+XGBRegressor MAPE: 0.13406795806635707
+XGBRegressor RMSE: 6.228269299199973
+XGBRegressor R^2: 0.7687684934530014</pre>
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>RMSE for different models</b></p>
+<div class="img"><img width="560" style="margin-right: 27px;" src="../visuals/RMSE_nt.png"></div>
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>R<sup>2</sup> for different models</b></p>
+<div class="img"><img width="560" style="margin-right: 27px;" src="../visuals/R2_nt.png"></div>
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>MAPE for different models</b></p>
+<div class="img"><img width="560" style="margin-right: 27px;" src="../visuals/MAPE_nt.png"></div>
+<br><br>
+<p class="body-text">As we see the lowest RMSE and MAPE has Random forest Regressor. It means that this model makes on average the least errors in terms of % and absolute values. It also has highest R<sup>2</sup> 
+    which means model variance explains variance of predicted data pretty well. It means 80% of variability in data is taken into account in models predictions. XGBoost regressor has a bit higher both 20% and 10% hit rate than Random Forest and the difference is around 1%. 
+    It could mean that this model performs better within these thresholds than Random Forest Regressor, but on average it is a bit worse.
+    It means that both models give valuations that are off by no more than 20% in around 83% of cases. When we use 10% as threshold this value goes down to about 62%
+<br><br>
+<p class="body-text">We used default hyperparemetrs for each model. Perhaps we could further improve models by performing hyperparemeter tuning. Below is the code that employes a 
+    function with GridSearchCV to find best hyperparemetrs among those that were listed for our models. We perform 10 fold cross validation to ensure validity of our results.
+
+</p>
+<br><br>
+
+<section><p style="font-size: 20px; text-align: center;" class="body-text"><b>Python code: real_estate.py (improved)</b></p>
+<div class="code-container2">
+<button class="toggle-code-button2" align="center">Show code</button>
+<pre id="python-code-cont2" class="python-code-cont2"><code class="language-python">
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split, GridSearchCV, KFold
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.svm import SVR
+from sklearn.ensemble import RandomForestRegressor
+from xgboost import XGBRegressor
+from sklearn.metrics import root_mean_squared_error, r2_score
+from sklearn.metrics import mean_absolute_percentage_error as MAPE
+
+# Load data
+df = pd.read_excel('Real estate valuation data set.xlsx')
+X = df.drop(['Y house price of unit area', 'No'], axis=1)
+y = df['Y house price of unit area']
+
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Scale numerical features
+numerical_features = ['X1 transaction date', 'X2 house age', 'X3 distance to the nearest MRT station',
+                        'X4 number of convenience stores', 'X5 latitude', 'X6 longitude']
+scaler = MinMaxScaler()
+X_train[numerical_features] = scaler.fit_transform(X_train[numerical_features])
+X_test[numerical_features] = scaler.transform(X_test[numerical_features])
+
+# Define models and parameter grids
+models = {
+    'SVR': (SVR(), {
+    'kernel': ['rbf'],
+    'C': [0.01, 0.1, 1, 10, 100, 1000],
+    'gamma': ['scale', 'auto', 0.001, 0.01, 0.1, 1, 10],
+    'epsilon': [0.001, 0.01, 0.1, 0.5, 1]
+    }),
+    'RandomForestRegressor': (RandomForestRegressor(random_state=42, n_jobs=-1), { # n_jobs=-1 for parallelization
+        'n_estimators': [100, 200],
+        'max_depth': [None, 20],
+        'min_samples_split': [5, 10],
+        'min_samples_leaf': [2, 4],
+        'max_features': ['log2', 'sqrt']  
+    }),
+
+    'XGBRegressor': (XGBRegressor(random_state=42), {
+        'n_estimators': [100, 200],
+        'learning_rate': [0.01, 0.1, 0.2],
+        'max_depth': [3, 4, 5],
+        'subsample': [0.8, 1.0],
+        'colsample_bytree': [0.8, 1.0]
+    })
+}
+
+kf = KFold(n_splits=10, shuffle=True, random_state=42) # Cross-validation
+
+results = {}
+best_estimators = {}
+
+# Hit rate %
+def calculate_hit_rate(y_true, y_pred, percentage_error):
+    error = np.abs(y_true - y_pred)
+    within_threshold = (error / y_true) <= (percentage_error / 100.0)  # Check if within percentage
+    hit_rate = np.mean(within_threshold) * 100
+    return hit_rate
+
+# Train and evalute models
+for name, (model, param_grid) in models.items():
+    print(f"Tuning {name}...")
+    grid_search = GridSearchCV(model, param_grid, cv=kf, scoring='neg_mean_squared_error', n_jobs=-1)  # Use all available cores
+    grid_search.fit(X_train, y_train)
+
+    best_estimators[name] = grid_search.best_estimator_  # Store the best estimator
+
+    y_pred = grid_search.predict(X_test)
+
+    rmse = root_mean_squared_error(y_test, y_pred)  # Calculate RMSE on original scale
+    r2 = r2_score(y_test, y_pred)
+    mape = MAPE(y_test, y_pred)
+    hit_rate_20 = calculate_hit_rate(y_test, y_pred, 20)
+    hit_rate_10 = calculate_hit_rate(y_test, y_pred, 10)
+
+    results[name] = {'RMSE': rmse, 'R^2': r2, 'MAPE': mape, 'Best Params': grid_search.best_params_}
+
+    print(f"{name} Best Parameters: {grid_search.best_params_}")
+    print(f"{name} MAPE: {mape}")
+    print(f"{name} - 20% Hit Rate: {hit_rate_20:.2f}%, 10% Hit Rate: {hit_rate_10:.2f}%")
+    print(f"{name} RMSE: {rmse}")
+    print(f"{name} R^2: {r2}\n")
+
+model_order = ['SVR', 'XGBRegressor', 'RandomForestRegressor']
+
+# Plotting RMSE
+plt.figure(figsize=(10, 6))
+plt.bar(model_order, [results[model]['RMSE'] for model in model_order])
+plt.ylabel('RMSE')
+title = 'RMSE for Different Regression Models (Tuned Hyperparameters)'
+plt.title(title)
+plt.show()
+
+# Plotting R-squared
+plt.figure(figsize=(10, 6))
+plt.bar(model_order, [results[model]['R^2'] for model in model_order])
+plt.ylabel('R-squared')
+title = 'R-squared for Different Regression Models (Tuned Hyperparameters)'
+plt.title(title)
+plt.show()
+
+# Plotting MAPE
+plt.figure(figsize=(10, 6))
+plt.bar(model_order, [results[model]['MAPE'] for model in model_order])
+plt.ylabel('MAPE')
+title = 'MAPE for Different Regression Models (Tuned Hyperparameters)'
+plt.title(title)
+plt.show()
+</code></pre>
+<script>
+    hljs.highlightAll();
+</script>
+<button class="copy-button2" type="button">
+<img src="../visuals/button.jpg" alt="Copy Button" style="margin: 0 auto; width: 20px; height: 20px;">
+<span class="copy-message2">Copied!</span>
+<div class="button-dim-overlay2"></div>
+</button>
+<script src="../scripts/copy2.js"></script>
+</section></div>
+
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>Output</b></p>
+<br><br>
+<pre class="pre-move">
+Tuning SVR...
+SVR Best Parameters: {'C': 100, 'epsilon': 1, 'gamma': 'scale', 'kernel': 'rbf'}
+SVR MAPE: 0.11893658839450111
+SVR - 20% Hit Rate: 86.75%, 10% Hit Rate: 55.42%
+SVR RMSE: 6.078669604370871
+SVR R^2: 0.7797432020132685
+
+Tuning RandomForestRegressor...
+RandomForestRegressor Best Parameters: {'max_depth': None, 'max_features': 'log2', 'min_samples_leaf': 2, 'min_samples_split': 5, 'n_estimators': 200}
+RandomForestRegressor MAPE: 0.1119920298624962
+RandomForestRegressor - 20% Hit Rate: 84.34%, 10% Hit Rate: 61.45%
+RandomForestRegressor RMSE: 5.301223420637028
+RandomForestRegressor R^2: 0.8324808503024494
+
+Tuning XGBRegressor...
+XGBRegressor Best Parameters: {'colsample_bytree': 0.8, 'learning_rate': 0.1, 'max_depth': 3, 'n_estimators': 100, 'subsample': 0.8}
+XGBRegressor MAPE: 0.11433698109189136
+XGBRegressor - 20% Hit Rate: 85.54%, 10% Hit Rate: 62.65%
+XGBRegressor RMSE: 5.642890066169044
+XGBRegressor R^2: 0.8101916023422072</pre>
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>RMSE for different models</b></p>
+<div class="img"><img width="560" style="margin-right: 27px;" src="../visuals/RMSE_t.png"></div>
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>R<sup>2</sup> for different models</b></p>
+<div class="img"><img width="560" style="margin-right: 27px;" src="../visuals/R2_t.png"></div>
+<br><br>
+<p style="font-size: 20px; text-align: center;" class="body-text"><b>MAPE for different models</b></p>
+<div class="img"><img width="560" style="margin-right: 27px;" src="../visuals/MAPE_t.png"></div>
+<br><br>
+<p class="body-text">
+It turns out that in tuned models Random Forest Regressor has the best performance as well in terms of all three evaluation methods (R<sup>2</sup>, RMSE, MAPE). This time
+XGBoost Regressor has better 20 and 10% hit rates as well, but SVR this time has the best 20% hit rate. Nevertheless I think we would want the most reliable model, that gives us the smallest RMSE possible,
+which means it can handle outliers pretty well too. 
+<br><br>
+Let's delve into real case scenario. If we are company that wants to trade real estate, even if we have 10% margin error, then on an estate thats let's say costs 200 000$ we can be 
+off either up or down which would mean we would say it is worth 180 000$ or 220 000$. That is pretty substiantial difference, if such company were to buy it overpriced it would loose money. 
+<br><br>
+What is more interesting, we can see real world case of such situation, that despite having the best model, because it lacked information about for example the interior of such house, the company started to generate huge lossess 
+on their real estate dealership. And their currect model is "off" the prices of real estate just about 2.4% on average (according to the paper referenced below). 
+It is substantially smaller than our 12% MAPE for best model (Random Forest regressor). More interesting information about this
+failure can be <a rel="noopener noreferrer" href="https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4520172" target="blank"><b>found here.</b></a> 
+<br><br>
+<br><br>
